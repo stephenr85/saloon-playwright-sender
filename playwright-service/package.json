@@ -1,0 +1,17 @@
+{
+    "name": "saloon-playwright-service",
+    "version": "1.0.0",
+    "description": "Playwright microservice for rushing/saloon-playwright-sender",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "lint": "eslint ."
+    },
+    "dependencies": {
+        "express": "^4.21.0",
+        "playwright": "^1.45.0"
+    },
+    "devDependencies": {
+        "eslint": "^9.0.0"
+    }
+}

@@ -1,0 +1,52 @@
+{
+    "name": "rushing/saloon-playwright-sender",
+    "description": "A Saloon Sender that dispatches requests through a Playwright browser microservice",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Stephen Rushing"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "saloonphp/saloon": "^3.0",
+        "guzzlehttp/guzzle": "^7.5"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.0",
+        "orchestra/testbench": "^10.0",
+        "pestphp/pest": "^3.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Rushing\\SaloonPlaywright\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Rushing\\SaloonPlaywright\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Rushing\\SaloonPlaywright\\Laravel\\PlaywrightSenderServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "lint": "pint",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
