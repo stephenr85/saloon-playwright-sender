@@ -56,6 +56,7 @@ Set these in `.env` (or pass a `PlaywrightServiceConfig` directly — see below)
 | `PLAYWRIGHT_SERVICE_URL`    | `http://localhost:3000`  | URL of the running Node service          |
 | `PLAYWRIGHT_TIMEOUT`        | `30`                     | Request timeout in seconds               |
 | `PLAYWRIGHT_RESPONSE_MODE`  | `html`                   | `html` returns rendered DOM; `body` returns the raw HTTP response body |
+| `PLAYWRIGHT_AUTO_START`     | `false`                  | Start the Node service automatically if it is not already running |
 
 ## Basic usage
 

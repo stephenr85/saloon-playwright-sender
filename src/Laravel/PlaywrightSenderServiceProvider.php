@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Rushing\SaloonPlaywright\Laravel;
 
 use Illuminate\Support\ServiceProvider;
+use Rushing\SaloonPlaywright\PlaywrightSender;
 use Rushing\SaloonPlaywright\PlaywrightServiceConfig;
 
 class PlaywrightSenderServiceProvider extends ServiceProvider
@@ -18,7 +19,12 @@ class PlaywrightSenderServiceProvider extends ServiceProvider
                 serviceUrl: config('playwright-sender.service_url'),
                 timeout: (int) config('playwright-sender.timeout'),
                 responseMode: config('playwright-sender.response_mode'),
+                autoStart: (bool) config('playwright-sender.auto_start'),
             );
+        });
+
+        $this->app->singleton(PlaywrightSender::class, function ($app) {
+            return new PlaywrightSender($app->make(PlaywrightServiceConfig::class));
         });
     }
 
