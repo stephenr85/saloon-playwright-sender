@@ -15,6 +15,7 @@ class PlaywrightServiceConfig
         public readonly string $serviceUrl = 'http://localhost:3000',
         public readonly int $timeout = 30,
         public readonly string $responseMode = 'html',
+        public readonly bool $autoStart = false,
     ) {
     }
 }

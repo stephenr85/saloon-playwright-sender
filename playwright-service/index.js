@@ -13,7 +13,7 @@ async function initBrowser() {
 }
 
 app.post('/navigate', async (req, res) => {
-    const { url, method = 'GET', headers = {}, mode = 'html' } = req.body;
+    const { url, method = 'GET', headers = {}, mode = 'html', script = null } = req.body;
 
     if (!url) {
         return res.status(400).json({ error: 'url is required' });
@@ -27,6 +27,13 @@ app.post('/navigate', async (req, res) => {
         }
 
         const response = await page.goto(url, { waitUntil: 'networkidle' });
+
+        if (script) {
+            // Intentional: script originates from PHP application code, not user input.
+            // The service must not be exposed beyond localhost.
+            const fn = new Function('page', `return (async () => { ${script} })()`);
+            await fn(page);
+        }
 
         const status = response ? response.status() : 200;
         const responseHeaders = response ? response.headers() : {};
@@ -44,10 +51,11 @@ app.post('/navigate', async (req, res) => {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
 
 initBrowser().then(() => {
-    app.listen(PORT, () => {
-        console.log(`Playwright service listening on port ${PORT}`);
+    app.listen(PORT, HOST, () => {
+        console.log(`Playwright service listening on ${HOST}:${PORT}`);
     });
 }).catch((err) => {
     console.error('Failed to launch browser:', err);

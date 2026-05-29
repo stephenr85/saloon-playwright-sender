@@ -41,15 +41,23 @@ class PlaywrightSender implements Sender
 
     public function send(PendingRequest $pendingRequest): Response
     {
+        if ($this->config->autoStart) {
+            $this->ensureServiceRunning();
+        }
+
         $psrRequest = $pendingRequest->createPsrRequest();
 
+        /** @var string|null $script */
+        $script = $pendingRequest->config()->get('playwright_script');
+
         $serviceResponse = $this->guzzle->post($this->config->serviceUrl.'/navigate', [
-            'json' => [
+            'json' => array_filter([
                 'url' => (string) $pendingRequest->getUrl(),
                 'method' => $pendingRequest->getMethod()->value,
                 'headers' => $this->flattenHeaders($pendingRequest->headers()->all()),
                 'mode' => $this->config->responseMode,
-            ],
+                'script' => $script,
+            ], fn (mixed $v) => $v !== null),
         ]);
 
         $data = json_decode((string) $serviceResponse->getBody(), true);
@@ -78,6 +86,70 @@ class PlaywrightSender implements Sender
     public function sendAsync(PendingRequest $pendingRequest): PromiseInterface
     {
         return Create::promiseFor($this->send($pendingRequest));
+    }
+
+    private function ensureServiceRunning(): void
+    {
+        try {
+            $this->guzzle->get($this->config->serviceUrl.'/health', ['timeout' => 2]);
+
+            return;
+        } catch (\Throwable) {
+            // Service not responding; attempt to start it
+        }
+
+        $lockPath = sys_get_temp_dir().'/playwright-sender-'.md5($this->config->serviceUrl).'.lock';
+        $lock = fopen($lockPath, 'c');
+
+        if ($lock === false) {
+            return;
+        }
+
+        flock($lock, LOCK_EX);
+
+        try {
+            // Another worker may have started the service while we waited for the lock
+            try {
+                $this->guzzle->get($this->config->serviceUrl.'/health', ['timeout' => 2]);
+
+                return;
+            } catch (\Throwable) {
+                // Still down; we start it
+            }
+
+            $serviceDir = dirname(__DIR__).'/playwright-service';
+            $port = (int) (parse_url($this->config->serviceUrl, PHP_URL_PORT) ?? 3000);
+
+            exec(sprintf(
+                'PORT=%d nohup node %s/index.js > /dev/null 2>&1 &',
+                $port,
+                escapeshellarg($serviceDir),
+            ));
+
+            $ready = false;
+
+            for ($i = 0; $i < 20; $i++) {
+                usleep(500_000);
+
+                try {
+                    $this->guzzle->get($this->config->serviceUrl.'/health', ['timeout' => 1]);
+                    $ready = true;
+                    break;
+                } catch (\Throwable) {
+                    // Still starting up
+                }
+            }
+
+            if (! $ready) {
+                throw new \RuntimeException(
+                    "Playwright service at {$this->config->serviceUrl} could not be started. ".
+                    "Run manually: cd {$serviceDir} && npm install && node index.js",
+                );
+            }
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     /**

@@ -66,7 +66,8 @@ describe('PlaywrightServiceConfig', function () {
 
         expect($config->serviceUrl)->toBe('http://localhost:3000')
             ->and($config->timeout)->toBe(30)
-            ->and($config->responseMode)->toBe('html');
+            ->and($config->responseMode)->toBe('html')
+            ->and($config->autoStart)->toBeFalse();
     });
 
     it('accepts custom values', function () {
@@ -171,6 +172,109 @@ describe('PlaywrightSender', function () {
         $sender->send(makePendingRequest('https://imdb.com', '/title/tt0111161/locations/'));
 
         expect($capturedBody['url'])->toBe('https://imdb.com/title/tt0111161/locations/');
+    });
+
+    it('omits the script key when no playwright_script config is set', function () {
+        $capturedBody = null;
+
+        $mock = new MockHandler([
+            function (\Psr\Http\Message\RequestInterface $request) use (&$capturedBody) {
+                $capturedBody = json_decode((string) $request->getBody(), true);
+
+                return new GuzzleResponse(200, [], json_encode([
+                    'status' => 200,
+                    'headers' => [],
+                    'html' => '',
+                    'body' => null,
+                ]));
+            },
+        ]);
+
+        $sender = new PlaywrightSender(guzzle: new Client(['handler' => HandlerStack::create($mock)]));
+        $sender->send(makePendingRequest());
+
+        expect($capturedBody)->toHaveKey('url')
+            ->and($capturedBody)->not->toHaveKey('script');
+    });
+
+    it('performs a health check before navigating when autoStart is enabled', function () {
+        $requestLog = [];
+
+        $mock = new MockHandler([
+            function (\Psr\Http\Message\RequestInterface $request) use (&$requestLog) {
+                $requestLog[] = $request->getUri()->getPath();
+
+                return new GuzzleResponse(200, [], json_encode(['ok' => true]));
+            },
+            function (\Psr\Http\Message\RequestInterface $request) use (&$requestLog) {
+                $requestLog[] = $request->getUri()->getPath();
+
+                return new GuzzleResponse(200, [], json_encode([
+                    'status' => 200,
+                    'headers' => [],
+                    'html' => '<html></html>',
+                    'body' => null,
+                ]));
+            },
+        ]);
+
+        $sender = new PlaywrightSender(
+            config: new PlaywrightServiceConfig(autoStart: true),
+            guzzle: new Client(['handler' => HandlerStack::create($mock)]),
+        );
+
+        $sender->send(makePendingRequest());
+
+        expect($requestLog)->toBe(['/health', '/navigate']);
+    });
+
+    it('forwards playwright_script from request config to the Node service', function () {
+        $capturedBody = null;
+
+        $mock = new MockHandler([
+            function (\Psr\Http\Message\RequestInterface $request) use (&$capturedBody) {
+                $capturedBody = json_decode((string) $request->getBody(), true);
+
+                return new GuzzleResponse(200, [], json_encode([
+                    'status' => 200,
+                    'headers' => [],
+                    'html' => '',
+                    'body' => null,
+                ]));
+            },
+        ]);
+
+        $guzzle = new Client(['handler' => HandlerStack::create($mock)]);
+        $sender = new PlaywrightSender(guzzle: $guzzle);
+
+        $connector = new class ('https://example.com') extends Connector {
+            public function __construct(private string $base)
+            {
+            }
+
+            public function resolveBaseUrl(): string
+            {
+                return $this->base;
+            }
+        };
+
+        $request = new class () extends Request {
+            protected Method $method = Method::GET;
+
+            public function resolveEndpoint(): string
+            {
+                return '/test';
+            }
+
+            public function defaultConfig(): array
+            {
+                return ['playwright_script' => "await page.click('.load-more');"];
+            }
+        };
+
+        $sender->send(new PendingRequest($connector, $request));
+
+        expect($capturedBody['script'])->toBe("await page.click('.load-more');");
     });
 
     it('returns a fulfilled promise from sendAsync', function () {
